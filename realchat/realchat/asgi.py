@@ -13,12 +13,15 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from channels.auth import AuthMiddlewareStack
 
-
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'realchat.settings')
 
 django_asgi_app = get_asgi_application()
 
 from realchatapp import routing
+from django.urls import path
+
+from realchatapp.consumers import ChatroomConsumer
+
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
