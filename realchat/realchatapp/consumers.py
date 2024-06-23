@@ -61,6 +61,7 @@ class ChatroomConsumer(WebsocketConsumer):
         context = {
             'message': message,
             'user': self.user,
+            'chat_group':self.chatroom
         }
         html = render_to_string("chatapp/chat_message_p.html", context=context)
         self.send(text_data=html)
@@ -77,9 +78,16 @@ class ChatroomConsumer(WebsocketConsumer):
 
     def online_count_handler(self, event):
         online_count = event['online_count']
+
+        chat_messages = ChatGroup.objects.get(group_name=self.chatroom_name).chat_messages.all()[:30]
+        author_ids = set([message.author.id for message in chat_messages])
+
+        users = User.objects.filter(id__in=author_ids)
+
         context = {
             'online_count':online_count,
-            'chat_group': self.chatroom
+            'chat_group': self.chatroom,
+            'users': users
             }        
         html = render_to_string('chatapp/online_count.html', context)
         self.send(text_data=html)
@@ -123,14 +131,22 @@ class OnlineStatusConsumer(WebsocketConsumer):
         online_users = self.group.users_online.exclude(id=self.user.id)
         public_chat_users = ChatGroup.objects.get(group_name='public').users_online.exclude(id=self.user.id)
 
-        if public_chat_users:
+        my_chats = self.user.chat_group.all()
+        private_chats_with_users = [chat for chat in my_chats.filter(is_private=True) if chat.users_online.exclude(id=self.user.id)]
+
+        group_chats_with_users = [chat for chat in my_chats.filter(groupchat_name__isnull=False) if chat.users_online.exclude(id=self.user.id)]
+
+
+        if public_chat_users or private_chats_with_users or group_chats_with_users:
             online_in_chats = True
         else:
             online_in_chats = False
 
         context = {
             'online_users': online_users,
-            'online_in_chats' :online_in_chats
+            'online_in_chats' :online_in_chats,
+            'public_chat_users':public_chat_users,
+            'user': self.user
         }
 
         html = render_to_string('chatapp/online_status.html', context=context)

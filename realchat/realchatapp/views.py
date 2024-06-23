@@ -1,7 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
+from django.http import Http404, HttpResponse
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from django.contrib import messages
 from .models import ChatGroup, GroupMessage
 from .forms import CreateChatMessageFrom, CreateGroupchatForm, EditGroupchatForm
@@ -134,3 +136,25 @@ def leave_chat(request, chatroom_name):
         return redirect('home')
     
     return render(request, 'chatapp/leave_chat.html', {"chat_group":chat_group} )
+
+@login_required
+def upload_file(request, chatroom_name):
+    chat_group = get_object_or_404(ChatGroup, group_name=chatroom_name)
+
+    if request.htmx and request.FILES:
+        file = request.FILES['file']
+        message = GroupMessage.objects.create(
+            file = file,
+            author = request.user,
+            group = chat_group
+        )
+        channel_layer = get_channel_layer()
+        event = {
+            'type':'message_handler',
+            'message_id': message.id
+        }
+
+        async_to_sync(channel_layer.group_send)(
+            chatroom_name, event
+        )
+    return HttpResponse()
